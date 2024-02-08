@@ -1,7 +1,3 @@
-provider "aws" {
-  region = var.region 
-}
-
 terraform {
   backend "s3" {
     bucket         = "your-terraform-state-bucket-name"
