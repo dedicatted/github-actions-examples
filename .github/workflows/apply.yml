@@ -1,9 +1,6 @@
 name: Terraform Deployment
 
 on:
-  push:
-    branches:
-      - IDT-38
   workflow_dispatch:
 
 jobs:
@@ -31,7 +28,6 @@ jobs:
 
       - name: Apply Terraform changes
         run: terraform apply -auto-approve tfplan
-
 
       - name: Check Terraform status
         run: terraform state list
