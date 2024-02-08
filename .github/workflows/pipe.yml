@@ -26,31 +26,12 @@ jobs:
       - name: Initialize Terraform
         run: terraform init
 
-      - name: Check for existing S3 bucket
-        id: check_bucket
-        run: |
-          bucket_name=$(terraform output -json existing_s3_bucket | jq -r '.value')
-          if [ -z "$bucket_name" ]; then
-            echo "::set-output name=existing_bucket::false"
-          else
-            echo "::set-output name=existing_bucket::true"
-          fi
-
       - name: Plan Terraform changes
-        if: steps.check_bucket.outputs.existing_bucket == 'false' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: terraform plan -out=tfplan
 
       - name: Apply Terraform changes
-        if: steps.check_bucket.outputs.existing_bucket == 'false' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
 
-      - name: Manual trigger - Plan Terraform changes
-        if: steps.check_bucket.outputs.existing_bucket == 'false' && github.event_name == 'workflow_dispatch'
-        run: terraform plan -out=tfplan
-
-      - name: Manual trigger - Apply Terraform changes
-        if: steps.check_bucket.outputs.existing_bucket == 'false' && github.event_name == 'workflow_dispatch'
-        run: terraform apply -auto-approve tfplan
 
       - name: Check Terraform status
         run: terraform state list
