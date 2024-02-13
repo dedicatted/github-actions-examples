@@ -3,13 +3,15 @@ name: Terraform Deployment
 on:
   workflow_dispatch:
 
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  BUCKET_NAME: <your_bucket_name>
+  REGION: <your_region>
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Checkout code
@@ -20,22 +22,15 @@ jobs:
         with:
           terraform_version: 1.0.0
 
-      - name: Fetch S3 Bucket Name
-        id: fetch_bucket_name
-        run: |
-          bucket_name=$(grep -oP 'bucket\s*=\s*"\K[^"]+' providers.tf)
-          echo "::set-output name=bucket_name::$bucket_name"
-
       - name: Check if S3 bucket exists
         id: check_bucket
         run: |
-          aws s3api head-bucket --bucket ${{ steps.fetch_bucket_name.outputs.bucket_name }}
-        continue-on-error: true
-
-      - name: Create S3 bucket if not exists
-        if: steps.check_bucket.outcome != 'success'
-        run: |
-          aws s3api create-bucket --bucket ${{ steps.fetch_bucket_name.outputs.bucket_name }} --region <your-region> --create-bucket-configuration LocationConstraint=<your-region>
+          if aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
+            echo "Bucket already exists"
+          else
+            echo "Bucket does not exist"
+            aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${REGION}" --create-bucket-configuration LocationConstraint="${REGION}"
+          fi
 
       - name: Initialize Terraform
         run: terraform init
@@ -48,3 +43,18 @@ jobs:
 
       - name: Check Terraform status
         run: terraform state list
+
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0
+
+      - name: Destroy Terraform resources
+        run: terraform destroy -auto-approve
