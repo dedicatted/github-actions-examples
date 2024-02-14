@@ -25,9 +25,8 @@ env:
   TF_VAR_portal_prefix: ${{ github.event.inputs.environment }}
 
 jobs:
-  deployment:
-    name: ${{ github.event.inputs.environment }} API Deployment
-    environment: ${{ github.event.inputs.environment }}
+  check_and_configure:
+    name: Check S3 Bucket and Generate Backend Configuration
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
@@ -36,9 +35,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Checkout code
-        uses: actions/checkout@v3
 
       - name: Check if S3 Bucket For State Exists
         id: check-bucket
@@ -60,6 +56,14 @@ jobs:
           echo "region = \"$AWS_DEFAULT_REGION\"" >> backend.conf
           echo "encrypt = true" >> backend.conf
 
+  terraform_init_and_plan:
+    name: Terraform Init and Plan
+    runs-on: ubuntu-latest
+    needs: check_and_configure
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Terraform init
         run: |
           terraform init -backend-config=backend.conf
@@ -68,15 +72,24 @@ jobs:
         run: |
           terraform plan -out=tfplan
 
+  terraform_apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: terraform_init_and_plan
+    if: ${{ github.event.inputs.terraform_apply == 'true' }}
+    steps:
       - name: Terraform Apply
-        if: ${{ github.event.inputs.terraform_apply == 'true' }}
         run: |
           terraform apply tfplan
 
-      - name: Terraform Destroy
-        if: ${{ env.terraform_destroy == 'true' && env.terraform_destroy2 == 'true' }}
+  terraform_destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.terraform_destroy == 'true' }}
+    steps:
+      - name: Terraform Init
         run: |
           terraform init
+      - name: Terraform Destroy
+        run: |
           terraform destroy -auto-approve
-        env:
-          terraform_destroy: ${{ github.event.inputs.terraform_destroy }}
